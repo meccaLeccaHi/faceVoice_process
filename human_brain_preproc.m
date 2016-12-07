@@ -3,11 +3,11 @@
 % begins parsing tdt data file and header into final data format
 % apj
 % last modified
-% 10/31/16
+% 12/7/16
 %%%%%%%%%%%%%%%%
 tic
 
-% read header file info produced alongside ptb
+% read header file info produced by ptb
 pp.special = '/mnt/hbrl2/PetkovLab/Lazer_Morph/';
 pp.printout = [pp.special '352L/results/trigs/'];
 ptb_data = table2array(readtable([pp.special '352L/SPECIAL_mat/header_082416_1607.csv'],...
