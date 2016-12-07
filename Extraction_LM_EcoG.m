@@ -1,47 +1,67 @@
 % Extraction_LM_Ecog.m
-% 2016-01-12 APJ
+% 12/7/2016 APJ
 
 
 %This script extracts mat file in response to each sound and also generate
-%the grant average ERP figure. It also extracts sound wave forms when
+%the overall average ERP figure. It also extracts sound wave forms when
 %audio_in=1. Adapted from 'Extraction_AGL_Ecog.m'
 
 
-clc
-close all
-clear all
+% clc
+% close all
+% clear all
+% 
+% linux_on = 1;
 
-linux_on = 1;
+% set constants
+DATADIR = '/home/lab/Cloud2/movies/human/LazerMorph/';
+PATIENT = '352L';
+BLOCK = '007';
 
-%L307_________________________________________
-HG = [184:191];
-FC =[193:224];
-ATL = [161:183];
-%STG = [65:153];
-STG = [100:153];
-aIns = [23:30];
-pIns = [33:40];
-Amg = [41:48];
-pHC = [49:60];
-pHCstrip = [7:16];
-%subTandFr [17:20;225:232]
+
+% connection template
+connectSumm = readtable(fullfile(DATADIR, PATIENT, ...
+    [PATIENT '_conTemp.csv']));
+
+% convert channels from strings of indices to literal vectors
+Channel = cell(length(connectSumm{:,'TDTAcqChannel'}),1);
+for i = 1:length(connectSumm{:,'TDTAcqChannel'})
+    Channel{i} = eval(cell2mat(connectSumm{i,'TDTAcqChannel'}));
+end
+connectSumm = [connectSumm table(Channel)];  % concatenate variables
+
+
+%%%%%%%%%%%%%%S
+% 
+% %L307_________________________________________
+% HG = [184:191];
+% FC =[193:224];
+% ATL = [161:183];
+% %STG = [65:153];
+% STG = [100:153];
+% aIns = [23:30];
+% pIns = [33:40];
+% Amg = [41:48];
+% pHC = [49:60];
+% pHCstrip = [7:16];
+% %subTandFr [17:20;225:232]
 
 %% INPUT
-if linux_on
-     datadir ='/mnt/hbrl2/PetkovLab/AGL/348R/';
-%     datadir ='/home/windows_shares/lcn_fileserver/projects/Iowa/Newcastle/AGL_EcoG/data/2015-03-09/L307_AGLdata/';
-else
-    datadir ='V:\lcn\projects\Iowa\Newcastle\AGL_EcoG\data\2015-03-09\L307_AGLdata\';
-end
+% % if linux_on
+% %      datadir ='/mnt/hbrl2/PetkovLab/AGL/348R/';
+% % %     datadir ='/home/windows_shares/lcn_fileserver/projects/Iowa/Newcastle/AGL_EcoG/data/2015-03-09/L307_AGLdata/';
+% % else
+% %     datadir ='V:\lcn\projects\Iowa\Newcastle\AGL_EcoG\data\2015-03-09\L307_AGLdata\';
+% % end
 
-%datafn = '348-014_SPECIALevents_DBT1';%data mat file
-datafn = '348-014_SPECIALevents';%data mat file
+% % %datafn = '348-014_SPECIALevents_DBT1';%data mat file
+% % datafn = '348-014_SPECIALevents';%data mat file
 
-%channels = [HG FC ATL];
-%channels = [HG FC ATL STG aIns pIns Amg pHC pHCstrip];
+% data file name
+data_fname = [strjoin(regexp(PATIENT,['\d'],'match'),'') '-' BLOCK '_SPECIALevents'];
+
 channels = [65:99];
 audio_in = 0;
-%channels = 184;
 
 
 trial_on = 0; %Turn on figures for each trial
@@ -54,8 +74,10 @@ stimID=[1:8]; %Exposure
 
 %%
 
-for ch=1:length(channels)
-    cd ([datadir])
+cd ([datadir])
+    
+for ch = 1:length(channels)
+
     % fn=sprintf('LFPx_RZ2_chn%d', channels(ch));
     
     
@@ -74,7 +96,7 @@ for ch=1:length(channels)
     display(['Processing '  fn]);
     %%
     %Loading events and data for each contact
-    matObj=load(datafn,'Epoc','Evnt', fn);
+    matObj=load(data_fname,'Epoc','Evnt', fn);
     
     data_dat = matObj.(fn).dat;
     data_t = matObj.(fn).t;%1 to 1010
