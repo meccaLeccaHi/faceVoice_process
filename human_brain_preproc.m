@@ -8,9 +8,6 @@
 %%%%%%%%%%%%%%%%
 tic
 
-% define number of channels to be read-in
-channelNum = 256;
-
 %% read header file produced by ptb
 pp.special = '/mnt/hbrl2/PetkovLab/Lazer_Morph/';
 pp.printout = [pp.special '352L/results/trigs/'];
@@ -20,6 +17,7 @@ ptb_data = table2array(readtable([pp.special '352L/SPECIAL_mat/header_082416_160
 % split into header vars
 headNms = ptb_data(1,:);
 header = ptb_data(2:end,:);
+header(cellfun(@isempty,header)) = {1}; % fill in empty 'SCALE' values
 
 movNms = header(:,ismember(headNms,'MOVIE_NAME'));
 varNms = {'VOICE' 'FACE' 'NOISE' 'LEVEL' 'IDENTITY' 'TRAJ'}; % define variable names
@@ -29,25 +27,24 @@ tdt_data = load([pp.special '352L/SPECIAL_mat/352-007_SPECIALevents_DBT1.mat']);
 
 % remove unneccessary fields
 fields = fieldnames(tdt_data);
-fields = fields(~cellfun(@isempty,regexp(fields,'LFPx*')));
+channels = fields(~cellfun(@isempty,regexp(fields,'LFPx*')));
 
 % read analog photodiode signal, derive onset/offset times of stimuli
 photodiode = tdt_data.Inpt_RZ2_chn002.dat;
 flnkTm = 500;
-minCross = find(photodiode > -0.06); % minimum
-IsoCross = find(diff(minCross)> flnkTm/2); % timing of events
-Starts = minCross(IsoCross(3:end)); 
-Stops = minCross(IsoCross(3:end)+1); 
-maxTimeLen = max(Stops-Starts)+2*flnkTm;
+minCross = find(photodiode > -0.06); % threshold crossings
+IsoCross = find(diff(minCross)> 250); % only keep crossings longer than .25 secs
+Starts = minCross(IsoCross(3:end)); % vector of indices (not times)
+Stops = minCross(IsoCross(3:end)+1); % vector of indices (not times) 
+maxTimeLen = max(Stops-Starts)+2*flnkTm; % for later pre-allocation
 % figure; hist(Stops-Starts)
 % mkdir('/mnt/hbrl2/PetkovLab/Lazer_Morph/352L/procData/')
 
 % extract sampling rate (length = 1)
-fs = tdt_data.(fields{1}).fs(1);
-        
+fs = tdt_data.(channels{1}).fs(1);      
         
 % save dat arrays
-for j = 1:channelNum
+for j = 1:length(channels)
     
     chan_str = ['LFPx_RZ2_chn' sprintf('%03d',j)];
     dat.fs = tdt_data.(chan_str).('fs')(1);
@@ -119,35 +116,32 @@ keyboard
 
 %% left off here
 %% just need to wrap up this 3d array below
-% set up eeglab array - rows are channels and columns are data points
-% 3-D (channels, timepoints, epochs)
+
+tic
+eeglab_mat = [];
+
+% set up eeglab 3D array - channels, timepoints, epochs
 for s = 1:length(Starts) % epoch loop
-    epoch_mat = nan(channelNum,450000);
     
-    for f = 1:length(fields) % channel loop
-
-        epoch_indices = find(tdt_data.(fields{f}).t>(Starts(s)-flnkTm)) & ...
-            tdt_data.(fields{f}).t<(Stops(s)+flnkTm);
-        tdt_data.(fields{f}).t(epoch_indices)
-        volt_data = tdt_data.(fields{f}).dat(epoch_indices);
-        eeglab_mat(f,1:length(volt_data)) = volt_data;
+    epoch_mat = nan(length(channels),maxTimeLen+1); % pre-allocate
+    
+    % create array for epoch N - rows are channels and columns are data points
+    for c = 1:length(channels) % channel loop
+        volt_data = tdt_data.(channels{c}).dat(Starts(s)-flnkTm:Stops(s)+flnkTm);
+        epoch_mat(c,1:length(volt_data)) = volt_data';
     end
-end
-
-% remove all columns of only nans
-eeglab_mat(:,~any(~isnan(eeglab_mat), 1)) = [];
-
-epochArray = [num2cell(Starts) cellstr(repmat('Starts',length(Starts),1));...
-num2cell(Stops) cellstr(repmat('Stops',length(Stops),1))];
-
     
-EEG = pop_importdata('dataformat','array','data','eeglab_mat');
-% ,'setname','LazerMorph',...
-%     'srate',fs,'pnts',length(eeglab_mat),'nbchan',channelNum,'xmin',0);
+    % iteratively concatenate epoch arrays to create 3d array
+    eeglab_mat = cat(3,eeglab_mat,epoch_mat);
+    
+end
+toc
 
-EEG = pop_importepoch(EEG, dat.header, dat.headNms), 'latencyfields',{ 'stim'}, 'timeunit',1, 'headerlines',0);
+% import data into EEGlab array
+EEG = pop_importdata('dataformat','array','data','eeglab_mat','setname','LazerMorph',...
+    'srate',fs,'pnts',length(eeglab_mat),'nbchan',length(channels),'xmin',0);
+% import epochs into EEGlab array
+EEG = pop_importepoch(EEG, dat.header, dat.headNms);
 
-        EEG = pop_importepoch( EEG, 'Starts', { 'Starts'}), 'latencyfields',{ 'stim'}, 'timeunit',1, 'headerlines',0);
-
-
+% % figure out what to do with each of these later
 toc
