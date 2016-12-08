@@ -1,13 +1,17 @@
 % human_brain_preproc.m
 %
 % begins parsing tdt data file and header into final data format
+%
 % apj
 % last modified
-% 12/7/16
+% 12/8/16
 %%%%%%%%%%%%%%%%
 tic
 
-% read header file info produced by ptb
+% define number of channels to be read-in
+channelNum = 256;
+
+%% read header file produced by ptb
 pp.special = '/mnt/hbrl2/PetkovLab/Lazer_Morph/';
 pp.printout = [pp.special '352L/results/trigs/'];
 ptb_data = table2array(readtable([pp.special '352L/SPECIAL_mat/header_082416_1607.csv'],...
@@ -17,22 +21,31 @@ ptb_data = table2array(readtable([pp.special '352L/SPECIAL_mat/header_082416_160
 headNms = ptb_data(1,:);
 header = ptb_data(2:end,:);
 
-% read physio file
+movNms = header(:,ismember(headNms,'MOVIE_NAME'));
+varNms = {'VOICE' 'FACE' 'NOISE' 'LEVEL' 'IDENTITY' 'TRAJ'}; % define variable names
+
+%% read physio file
 tdt_data = load([pp.special '352L/SPECIAL_mat/352-007_SPECIALevents_DBT1.mat']);
 
-photodiode = tdt_data.Inpt_RZ2_chn002.dat;
+% remove unneccessary fields
+fields = fieldnames(tdt_data);
+fields = fields(~cellfun(@isempty,regexp(fields,'LFPx*')));
 
-flnkTm = 250;
-channelNum = 256;
+% read analog photodiode signal, derive onset/offset times of stimuli
+photodiode = tdt_data.Inpt_RZ2_chn002.dat;
+flnkTm = 500;
 minCross = find(photodiode > -0.06); % minimum
-IsoCross = find(diff(minCross)> flnkTm); % timing of events
+IsoCross = find(diff(minCross)> flnkTm/2); % timing of events
 Starts = minCross(IsoCross(3:end)); 
 Stops = minCross(IsoCross(3:end)+1); 
 maxTimeLen = max(Stops-Starts)+2*flnkTm;
 % figure; hist(Stops-Starts)
-
 % mkdir('/mnt/hbrl2/PetkovLab/Lazer_Morph/352L/procData/')
 
+% extract sampling rate (length = 1)
+fs = tdt_data.(fields{1}).fs(1);
+        
+        
 % save dat arrays
 for j = 1:channelNum
     
@@ -59,8 +72,6 @@ for j = 1:channelNum
         close(gcf)
     end
     
-    movNms = header(:,ismember(headNms,'MOVIE_NAME'));
-    varNms = {'VOICE' 'FACE' 'NOISE' 'LEVEL' 'IDENTITY' 'TRAJ'}; % define variable names
     vars = zeros(length(movNms),length(varNms)); % preallocate variable matrix
 
     for i = 1:length(movNms)
@@ -103,5 +114,40 @@ for j = 1:channelNum
 
     save([pp.special '352L/procData/352-007_chan' num2str(j) '.mat'],'-struct','dat')
 end
+
+keyboard
+
+%% left off here
+%% just need to wrap up this 3d array below
+% set up eeglab array - rows are channels and columns are data points
+% 3-D (channels, timepoints, epochs)
+for s = 1:length(Starts) % epoch loop
+    epoch_mat = nan(channelNum,450000);
+    
+    for f = 1:length(fields) % channel loop
+
+        epoch_indices = find(tdt_data.(fields{f}).t>(Starts(s)-flnkTm)) & ...
+            tdt_data.(fields{f}).t<(Stops(s)+flnkTm);
+        tdt_data.(fields{f}).t(epoch_indices)
+        volt_data = tdt_data.(fields{f}).dat(epoch_indices);
+        eeglab_mat(f,1:length(volt_data)) = volt_data;
+    end
+end
+
+% remove all columns of only nans
+eeglab_mat(:,~any(~isnan(eeglab_mat), 1)) = [];
+
+epochArray = [num2cell(Starts) cellstr(repmat('Starts',length(Starts),1));...
+num2cell(Stops) cellstr(repmat('Stops',length(Stops),1))];
+
+    
+EEG = pop_importdata('dataformat','array','data','eeglab_mat');
+% ,'setname','LazerMorph',...
+%     'srate',fs,'pnts',length(eeglab_mat),'nbchan',channelNum,'xmin',0);
+
+EEG = pop_importepoch(EEG, dat.header, dat.headNms), 'latencyfields',{ 'stim'}, 'timeunit',1, 'headerlines',0);
+
+        EEG = pop_importepoch( EEG, 'Starts', { 'Starts'}), 'latencyfields',{ 'stim'}, 'timeunit',1, 'headerlines',0);
+
 
 toc
