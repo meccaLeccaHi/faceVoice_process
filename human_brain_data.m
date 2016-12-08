@@ -1,7 +1,14 @@
 % human_brain_data.m
+%
+% begins plotting responses from tdt data and header files
+%
+% apj
+% last modified
+% 12/7/16
+%%%%%%%%%%%%%%%%
 
 patient = '352L';
-flnkTm = 250;
+flnkTm = 500;
 prs = 150;
 pp.special = '/mnt/hbrl2/PetkovLab/Lazer_Morph/';
 pp.preProc = [pp.special patient '/procData/'];
@@ -136,6 +143,17 @@ for pl = 1:length(ppNameList)
                 set(0,'CurrentFigure',fHan_spect)
                 subplot(rows,cols,ii + ((i-1)*cols) + ((iii-1)*(level_len+1)))
                 
+                keyboard
+                eeglab
+                figure;
+                [ersp,itc,powbase,times,freqs]=...
+                    newtimef(plot_resp,length(plot_resp),[-flnkTm numel(plot_resp)-flnkTm],dat.fs,...
+                    0,'plotitc','off');
+                
+                EEG = pop_importdata( 'dataformat', 'array', 'data', 'data', 'setname', 'Level', 'srate',srate, 'pnts',0, 'xmin',0, 'nbchan',0);
+
+
+        
                 segmentLength = round(numel(plot_resp)/4.5);
                 [y,f,t,p] = spectrogram(plot_resp,round(segmentLength/5), ...
                     round(80/100*segmentLength/5),[],dat.fs,'yaxis','MinThreshold',-20);
