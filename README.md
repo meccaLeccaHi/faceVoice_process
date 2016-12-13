@@ -1,6 +1,6 @@
 # faceVoice_process
 ## EcoG analysis pipeline
-This script includes elements of EEGlab (https://sccn.ucsd.edu/eeglab/).
+These scripts includes elements of EEGlab (https://sccn.ucsd.edu/eeglab/).
 
 ### human_brain_preproc.m
 De-noised digital signals are read in and parsed into trial epochs.
