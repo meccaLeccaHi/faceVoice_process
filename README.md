@@ -1,4 +1,4 @@
-# faceVoice_preprocess
+# faceVoice_process
 ## EcoG analysis pipeline
 This script includes elements of EEGlab (https://sccn.ucsd.edu/eeglab/).
 
