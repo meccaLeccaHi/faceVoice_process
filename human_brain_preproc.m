@@ -8,37 +8,63 @@
 %%%%%%%%%%%%%%%%
 tic
 
-%% read header file produced by ptb
-pp.special = '/mnt/hbrl2/PetkovLab/Lazer_Morph/';
-pp.printout = [pp.special '352L/results/trigs/'];
-ptb_data = table2array(readtable([pp.special '352L/SPECIAL_mat/header_082416_1607.csv'],...
-    'ReadVariableNames',false));
 
+%% set constants
+PROJDIR = '/home/lab/Cloud2/movies/human/LazerMorph/';
+DATADIR = '/mnt/hbrl2/PetkovLab/Lazer_Morph/';
+
+PATIENT = '352L';
+BLOCK = '007';
+
+HEADERFILE = 'header_082416_1607.csv';
+
+%% read connection template
+connectSumm = readtable(fullfile(PROJDIR, PATIENT, ...
+    [PATIENT '_conTemp.csv']));
+
+% convert channels from strings of indices to literal vectors
+Channel = cell(length(connectSumm{:,'TDTAcqChannel'}),1);
+for i = 1:length(connectSumm{:,'TDTAcqChannel'})
+    Channel{i} = eval(cell2mat(connectSumm{i,'TDTAcqChannel'}));
+end
+connectSumm = [connectSumm table(Channel)];  % concatenate variables
+
+%% read header file produced by psychtoolbox
+ptb_data = readtable(fullfile(DATADIR, PATIENT, 'SPECIAL_mat', ...
+        HEADERFILE));
+    
 % split into header vars
-headNms = ptb_data(1,:);
-header = ptb_data(2:end,:);
-header(cellfun(@isempty,header)) = {1}; % fill in empty 'SCALE' values
+headNms = ptb_data.Properties.VariableNames;
+header = table2cell(ptb_data);
+
+% fill in empty 'SCALE' values
+header(cellfun(@(x) any(isnan(x)),header)) = {1}; 
 
 movNms = header(:,ismember(headNms,'MOVIE_NAME'));
 varNms = {'VOICE' 'FACE' 'NOISE' 'LEVEL' 'IDENTITY' 'TRAJ'}; % define variable names
 
-%% read physio file
-tdt_data = load([pp.special '352L/SPECIAL_mat/352-007_SPECIALevents_DBT1.mat']);
+%% TDT data file name
+data_fname = fullfile(DATADIR, PATIENT, 'SPECIAL_mat',...
+    [strjoin(regexp(PATIENT,['\d'],'match'),'') '-' BLOCK '_SPECIALevents_DBT1.mat']);
 
-% remove unneccessary fields
-fields = fieldnames(tdt_data);
-channels = fields(~cellfun(@isempty,regexp(fields,'LFPx*')));
+%% read whole physio file
+tdt_data = load(data_fname);
 
-% read analog photodiode signal, derive onset/offset times of stimuli
+%% read photodiode analog signal, extract timing of onset/offset
+% foo = load(data_fname, 'Inpt_RZ2_chn002');
 photodiode = tdt_data.Inpt_RZ2_chn002.dat;
-flnkTm = 500;
-minCross = find(photodiode > -0.06); % threshold crossings
-IsoCross = find(diff(minCross)> 250); % only keep crossings longer than .25 secs
-Starts = minCross(IsoCross(3:end)); % vector of indices (not times)
-Stops = minCross(IsoCross(3:end)+1); % vector of indices (not times) 
-maxTimeLen = max(Stops-Starts)+2*flnkTm; % for later pre-allocation
+flnkTm = 250;
+minCross = find(photodiode > -0.06); % minimum
+IsoCross = find(diff(minCross)> flnkTm); % timing of events
+StimStarts = minCross(IsoCross(3:end)); 
+StimStops = minCross(IsoCross(3:end)+1); 
+% maxTimeLen = max(StimStops-StimStarts)+2*flnkTm;
 % figure; hist(Stops-Starts)
-% mkdir('/mnt/hbrl2/PetkovLab/Lazer_Morph/352L/procData/')
+
+% create fieldname list
+fields = fieldnames(tdt_data);
+% remove analog channels from list
+channels = fields(~cellfun(@isempty,regexp(fields,'LFPx*')));
 
 % extract sampling rate (length = 1)
 fs = tdt_data.(channels{1}).fs(1);      
