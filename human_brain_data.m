@@ -76,6 +76,10 @@ ppNameList = sort_nat({preProcList.name}'); % sort according to channel number
 for pl = 1:length(ppNameList)
     
 %     tic
+
+    % define limits for y-axis based on current channel
+    EEGchan = pop_select(EEG,'channel',pl);
+    yLimsChan = 1.1.*[min(min(EEGchan.data)) max(max(EEGchan.data))];
     
     % load preProc file
     dat = load([PREPROCDIR ppNameList{pl}]);
@@ -84,7 +88,9 @@ for pl = 1:length(ppNameList)
     ind.voice = cell2mat(dat.header(:,ismember(dat.headNms,'VOICE')));
     ind.face = cell2mat(dat.header(:,ismember(dat.headNms,'FACE')));
     ind.noise = cell2mat(dat.header(:,ismember(dat.headNms,'NOISE')));
-    ind = structfun(@logical,ind, 'UniformOutput', false);
+    ind = structfun(@logical,ind, 'UniformOutput', false); 
+    ind = structfun(@transpose,ind, 'UniformOutput', false);
+
 
     hd.levels = cell2mat(dat.header(:,ismember(dat.headNms,'LEVEL')));
     hd.idents = cell2mat(dat.header(:,ismember(dat.headNms,'IDENTITY')));
@@ -100,104 +106,127 @@ for pl = 1:length(ppNameList)
 
 
     %% build header
-    clear hd
     hd.voice = cell2mat({EEG.epoch.VOICE});
     hd.face = cell2mat({EEG.epoch.FACE});
     hd.noise = cell2mat({EEG.epoch.NOISE});
-
-    % grab indices of each group of stimuli
-    ind = structfun(@find,ind, 'UniformOutput', false);
-
-    % add remaining variables to header
     hd.levels = cell2mat({EEG.epoch.LEVEL});
     hd.idents = cell2mat({EEG.epoch.IDENTITY});
     hd.traj = cell2mat({EEG.epoch.TRAJ});
     
     %% subset data
-    EEGchan.face = pop_select(EEG,'channel',pl,'trial',ind.face);
-    EEGchan.voice = pop_select(EEG,'channel',pl,'trial',ind.voice);
-    EEGchan.both = pop_select(EEG,'channel',pl,'trial',hd.face&hd.voice);
-    EEGchan.noise = pop_select(EEG,'channel',pl,'trial',ind.noise);
+    EEGchan.face = pop_select(EEG,'channel',pl,'trial',find(hd.face));
+    EEGchan.voice = pop_select(EEG,'channel',pl,'trial',find(hd.voice));
+    EEGchan.both = pop_select(EEG,'channel',pl,'trial',find(hd.face&hd.voice));
+    EEGchan.noise = pop_select(EEG,'channel',pl,'trial',find(hd.noise));
 
     %% plot mean erp responses for each modality
         meanResp_audOnly = nanmean(subdat.voOnly);
         meanResp_visOnly = nanmean(subdat.faOnly);
         meanResp_audVis = nanmean(subdat.voFa);
 
-    meanResp_face = nanmean(EEGchan.face.data);
-    meanResp_voice = nanmean(EEGchan.voice.data);
-    meanResp_both = nanmean(EEGchan.both.data);
+    meanResp.face = nanmean(EEGchan.face.data,3);
+    meanResp.voice = nanmean(EEGchan.voice.data,3);
+    meanResp.both = nanmean(EEGchan.both.data,3);
     
-    keyboard
+    % remove singletons
+    meanResp = structfun(@squeeze,meanResp, 'UniformOutput', false);
     
 %     plotArray = {meanResp_audOnly; meanResp_visOnly; meanResp_audVis};
-    plotArray = {meanResp_face; meanResp_voice; meanResp_both};
+%     plotArray = {meanResp_face; meanResp_voice; meanResp_both};
 
-    ttlArray = {'face'; 'voice'; 'both'};
-    
-    yLims = 1.1*[min(min(dat.resps)) max(max(dat.resps))];
+    plotArray = cell2mat(struct2cell(meanResp));
+    ttlArray = fieldnames(meanResp);
 
-    figure('Color','w','Visible','off'); 
+    yLims = 1.1.*[min(min(plotArray)) max(max(plotArray))];
+
+    figure('Color','w'); % ,'Visible','off'
     for i = 1:3
         subplot(3,1,i)
-        plot(plotArray{i})
-        xlim([0 1000])
+        plot(plotArray(i,:))
+        xlim([0 length(plotArray(i,:))])
         ylim(yLims)
-        line([FLNKTIM FLNKTIM],yLims,'LineWidth',2,'Color','k')
-        line([FLNKTIM*3 FLNKTIM*3],yLims,'LineWidth',2,'Color','k')
+        
+        % indicate stimulus onset/offset
+        line([FLNKTIM FLNKTIM*2; FLNKTIM FLNKTIM*2],[yLims' yLims'],'LineWidth',2,'Color','k')
+        
         title(ttlArray{i})
     end
+    
+    % add notes to corner of figure
     uicontrol('Style','text','String',[PATIENT '_chan' sprintf('%03d',pl)],...
         'Units','normalized','Position',[0 0 .175 .03]); 
     
     save_name = [RESULTSDIR 'erp/aveMod_' PATIENT '_chan' sprintf('%03d',pl) '.png'];
-    export_fig(save_name)
-    fprintf('\nsaved: %s',save_name);
+%     export_fig(save_name)
+%     fprintf('\nsaved: %s',save_name);
     close(gcf)
     
+    
     %% plot time-frequency plots
+ 
+
+    % identity levels
     levels = unique(hd.levels);
     loop_lev = levels(2:end);
     level_len = length(loop_lev);
+    REPORT.levels = levels; % add to report
+    
+    % identity numbers
     idents = unique(hd.idents);
     loop_id = idents(2:end);
     ident_len = length(loop_id);
+    REPORT.identityNum = ident_len; % add to report
+    
+    % trajectory direction
     traj_inds = hd.traj==1;
     
+    % set up figure
     rows = ident_len;
     cols = level_len*3 + 2;
-    fHan_erp = figure('Units','normalized','Outerposition',[0 0 .7 .7],'Color','w','Visible','off'); % ,'Visible','off'
-    fHan_spect = figure('Units','normalized','Outerposition',[0 0 .7 .7],'Color','w','Visible','off'); % ,'Visible','off'
+    fHan_erp = figure('Units','normalized','Outerposition',[0 0 .7 .7],'Color','w'); % ,'Visible','off'
+    fHan_spect = figure('Units','normalized','Outerposition',[0 0 .7 .7],'Color','w'); % ,'Visible','off'
 
-    mod_title = {'AUD','VIS','A/V'};
-    for i = 1:ident_len
-        for ii = 1:level_len
+%     mod_title = {'AUD','VIS','A/V'};
+    ttlArray = fieldnames(meanResp);
+        
+    for i = 1:ident_len % identity loop
+        
+        for ii = 1:level_len % identity level loop
             
-            ident_inds = hd.idents==loop_id(i);
-            level_inds = hd.levels==loop_lev(ii);
-
-            resp{1} = dat.resps(ind.voice&~ind.face&~ind.noise&...
-                level_inds&ident_inds&traj_inds,:);
-            resp{2} = dat.resps(~ind.voice&ind.face&~ind.noise&...
-                level_inds&ident_inds&traj_inds,:);
-            resp{3} = dat.resps(ind.voice&ind.face&~ind.noise&...
-                level_inds&ident_inds&traj_inds,:);
+            ident_inds = hd.idents==loop_id(i); % create indices for identity i
+            level_inds = hd.levels==loop_lev(ii); % create indices for identity level ii
             
-            for iii = 1:length(mod_title)
+            loop_inds = level_inds&ident_inds&traj_inds; % create logical array for current loop
+            
+            %% subset data - modality>noise>level
+            EEGstim.face = pop_select(EEG,'trial',find(hd.face&~hd.noise&loop_inds),'channel',pl);
+            EEGstim.voice = pop_select(EEG,'trial',find(hd.voice&~hd.noise&loop_inds),'channel',pl);
+            EEGstim.noise = pop_select(EEG,'trial',find(hd.face&~hd.noise&loop_inds),'channel',pl);
+            
+            % convert structure to cell array
+            resps = struct2cell(EEGstim);
+            
+                resp{1} = dat.resps(ind.voice&~ind.face&~ind.noise&loop_inds,:);
+                resp{2} = dat.resps(~ind.voice&ind.face&~ind.noise&loop_inds,:);
+                resp{3} = dat.resps(ind.voice&ind.face&~ind.noise&loop_inds,:);
+            
+            for iii = 1:length(ttlArray)
+                
                 %% plot erp
                 set(0,'CurrentFigure',fHan_erp)
                 subplot(rows,cols,ii + ((i-1)*cols) + ((iii-1)*(level_len+1)))
-                plot_resp = resp{iii}(isfinite(resp{1})); % remove NaNs
+                plot_resp = nanmean(squeeze(resps{iii}.data),2); % average over stimuli
+%                 plot_resp = plot_resp(isfinite(resps{1}.data)); % remove NaNs
                 plot(plot_resp)
                 %             axis off
-                set(gca,'XLim',[1 length(plot_resp)],'YLim',yLims,...
+                set(gca,'XLim',[1 length(plot_resp)],'YLim',yLimsChan,...
                     'Position',get(gca,'Position').*[1 1 1.1 1]) % set position
                 
-                % plot stim time
-                line([FLNKTIM FLNKTIM],yLims,'LineWidth',1,'Color','k')
-                line([length(plot_resp) length(plot_resp)]-FLNKTIM,yLims,'LineWidth',1,'Color','k')
-                
-                % set text labels
+                 % indicate stimulus onset/offset
+                 line([FLNKTIM FLNKTIM*2; FLNKTIM FLNKTIM*2],[yLimsChan' yLimsChan'],...
+                     'LineWidth',2,'Color','k')
+        
+                %% set text labels
                 if i~=ident_len||ii~=1
                     set(gca,'XLabel',[],'YLabel',[],'XTick',[],'YTick',[])
                 else
@@ -216,7 +245,7 @@ for pl = 1:length(ppNameList)
                 end
                 if i==1&&ii==1
                     % plot second title
-                    text(2300,max(ylim)*2,mod_title{iii},'FontSize',14','FontWeight','Bold', ...
+                    text(2300,max(ylim)*2,ttlArray{iii},'FontSize',14','FontWeight','Bold', ...
                         'HorizontalAlignment','Center');
                 end
                 
@@ -226,6 +255,9 @@ for pl = 1:length(ppNameList)
                 subplot(rows,cols,ii + ((i-1)*cols) + ((iii-1)*(level_len+1)))
                 
                 keyboard
+                
+                
+                
                 eeglab
                 figure;
                 [ersp,itc,powbase,times,freqs]=...
@@ -265,7 +297,7 @@ for pl = 1:length(ppNameList)
                 end
                 if i==1&&ii==1
                     % plot second title  320
-                    text(2300,diff(ylim)*1.5,mod_title{iii},'FontSize',14','FontWeight','Bold', ...
+                    text(2300,diff(ylim)*1.5,ttlArray{iii},'FontSize',14','FontWeight','Bold', ...
                         'HorizontalAlignment','Center','Color','k');
                 end
                 
