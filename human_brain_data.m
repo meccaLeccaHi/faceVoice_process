@@ -4,20 +4,73 @@
 %
 % apj
 % last modified
-% 12/7/16
+% 12/13/16
 %%%%%%%%%%%%%%%%
 
-patient = '352L';
-flnkTm = 500;
-prs = 150;
-pp.special = '/mnt/hbrl2/PetkovLab/Lazer_Morph/';
-pp.preProc = [pp.special patient '/procData/'];
-pp.cloud = '/home/lab/Cloud2/movies/human/LazerMorph/';
-pp.aveMod = [pp.cloud patient '/results/aveMod/'];
-pp.erp = [pp.cloud patient '/results/erp/'];
-pp.spect = [pp.cloud patient '/results/spect/'];
+%% set constants
+% patient info
+PATIENT = '352L';
+BLOCK = '007';
 
-preProcList = dir([pp.preProc patient(1:3) '*.mat']); % get list of pre-processed files
+% header file from ptb
+HEADERFILE = 'header_082416_1607.csv';
+
+% figure print resolution
+PRS = 150;
+
+% length of time before/after stimulus event to retrieve
+FLNKTIM = 500;
+
+%% set directories
+PROJDIR = '/home/lab/Cloud2/movies/human/LazerMorph/';
+DATADIR = '/mnt/hbrl2/PetkovLab/Lazer_Morph/';
+PREPROCDIR = [DATADIR PATIENT '/procData/'];
+RESULTSDIR = [DATADIR PATIENT '/results/'];
+
+eeg_fname = dir([PREPROCDIR '*eeglab.set']);
+EEG = pop_loadset([PREPROCDIR eeg_fname.name]);
+
+
+
+% alpha_val = 0.05; %compute two-tailed bootstrap s, ignificance prob. level.
+% freq_range = [3 100];%[1.2 100]
+% maxfreq = max(freq_range);
+% 
+% padratio = 2;     
+% 
+% elec = 1;
+% 
+% %The figure only shows 500ms
+% basemin = -500; %duration prior to sound onset (ms): needs to follow the matrix size (basemin = epochmin)
+% basemax = 0;
+% 
+% 
+% 
+% %  [ersp,itc,powbase,times,freqs,erspboot,itcboot,alltfX] = pop_newtimef(EEG, ...
+% %             1, elec, [EEG.xmin EEG.xmax]*EEG.srate,[3 0.5], 'maxfreq',maxfreq, 'freqs',freq_range,'padratio', padratio, ...
+% %             'plotphase', 'off', 'timesout', outtimes, 'alpha', alpha_val, 'naccu', 300, 'baseboot',1,'rmerp','off', ...
+% %             'erspmax', maxersp, 'plotersp','on', 'plotitc',itcplot,'baseline',[basemin basemax],'marktimes',plot_marktimes);       
+% 
+% % [ersp,itc,powbase,times,freqs,erspboot,itcboot] = ...
+% %     newtimef(EEG.data, EEG.pnts, [EEG.xmin EEG.xmax], EEG.srate,0);
+% 
+% 
+% plot_resp = nanmean(EEG.data,3);
+% 
+% figure
+% plot(plot_resp)
+% 
+% % eeglab
+% 
+% figure;
+% [ersp,itc,powbase,times,freqs] = ...
+%     newtimef(plot_resp,length(plot_resp),[-FLNKTIM numel(plot_resp)-FLNKTIM], ...
+%     EEG.srate,0,'plotitc','off');
+                
+                
+                
+
+preProcList = dir([PREPROCDIR PATIENT(1:3) '*chan*.mat']); % get list of pre-processed files
 ppNameList = sort_nat({preProcList.name}'); % sort according to channel number
 
 for pl = 1:length(ppNameList)
@@ -25,7 +78,7 @@ for pl = 1:length(ppNameList)
 %     tic
     
     % load preProc file
-    dat = load([pp.preProc ppNameList{pl}]);
+    dat = load([PREPROCDIR ppNameList{pl}]);
 
     % grab header info
     ind.voice = cell2mat(dat.header(:,ismember(dat.headNms,'VOICE')));
@@ -45,14 +98,43 @@ for pl = 1:length(ppNameList)
 %     subdat.faNoise = dat.resps(ind.face&ind.noise,:);
 %     subdat.voFaNoise = dat.resps(ind.face&ind.voice&ind.noise,:);
 
- 
-    %% plot mean erp responses for each modality
-    meanResp_audOnly = nanmean(subdat.voOnly);
-    meanResp_visOnly = nanmean(subdat.faOnly);
-    meanResp_audVis = nanmean(subdat.voFa);
+
+    %% build header
+    clear hd
+    hd.voice = cell2mat({EEG.epoch.VOICE});
+    hd.face = cell2mat({EEG.epoch.FACE});
+    hd.noise = cell2mat({EEG.epoch.NOISE});
+
+    % grab indices of each group of stimuli
+    ind = structfun(@find,ind, 'UniformOutput', false);
+
+    % add remaining variables to header
+    hd.levels = cell2mat({EEG.epoch.LEVEL});
+    hd.idents = cell2mat({EEG.epoch.IDENTITY});
+    hd.traj = cell2mat({EEG.epoch.TRAJ});
     
-    plotArray = {meanResp_audOnly; meanResp_visOnly; meanResp_audVis};
-    ttlArray = {'audio'; 'visual'; 'audio/visual'};
+    %% subset data
+    EEGchan.face = pop_select(EEG,'channel',pl,'trial',ind.face);
+    EEGchan.voice = pop_select(EEG,'channel',pl,'trial',ind.voice);
+    EEGchan.both = pop_select(EEG,'channel',pl,'trial',hd.face&hd.voice);
+    EEGchan.noise = pop_select(EEG,'channel',pl,'trial',ind.noise);
+
+    %% plot mean erp responses for each modality
+        meanResp_audOnly = nanmean(subdat.voOnly);
+        meanResp_visOnly = nanmean(subdat.faOnly);
+        meanResp_audVis = nanmean(subdat.voFa);
+
+    meanResp_face = nanmean(EEGchan.face.data);
+    meanResp_voice = nanmean(EEGchan.voice.data);
+    meanResp_both = nanmean(EEGchan.both.data);
+    
+    keyboard
+    
+%     plotArray = {meanResp_audOnly; meanResp_visOnly; meanResp_audVis};
+    plotArray = {meanResp_face; meanResp_voice; meanResp_both};
+
+    ttlArray = {'face'; 'voice'; 'both'};
+    
     yLims = 1.1*[min(min(dat.resps)) max(max(dat.resps))];
 
     figure('Color','w','Visible','off'); 
@@ -61,14 +143,14 @@ for pl = 1:length(ppNameList)
         plot(plotArray{i})
         xlim([0 1000])
         ylim(yLims)
-        line([flnkTm flnkTm],yLims,'LineWidth',2,'Color','k')
-        line([flnkTm*3 flnkTm*3],yLims,'LineWidth',2,'Color','k')
+        line([FLNKTIM FLNKTIM],yLims,'LineWidth',2,'Color','k')
+        line([FLNKTIM*3 FLNKTIM*3],yLims,'LineWidth',2,'Color','k')
         title(ttlArray{i})
     end
-    uicontrol('Style','text','String',[patient '_chan' sprintf('%03d',pl)],...
+    uicontrol('Style','text','String',[PATIENT '_chan' sprintf('%03d',pl)],...
         'Units','normalized','Position',[0 0 .175 .03]); 
     
-    save_name = [pp.aveMod 'aveMod_' patient '_chan' sprintf('%03d',pl) '.png'];
+    save_name = [RESULTSDIR 'erp/aveMod_' PATIENT '_chan' sprintf('%03d',pl) '.png'];
     export_fig(save_name)
     fprintf('\nsaved: %s',save_name);
     close(gcf)
@@ -112,17 +194,17 @@ for pl = 1:length(ppNameList)
                     'Position',get(gca,'Position').*[1 1 1.1 1]) % set position
                 
                 % plot stim time
-                line([flnkTm flnkTm],yLims,'LineWidth',1,'Color','k')
-                line([length(plot_resp) length(plot_resp)]-flnkTm,yLims,'LineWidth',1,'Color','k')
+                line([FLNKTIM FLNKTIM],yLims,'LineWidth',1,'Color','k')
+                line([length(plot_resp) length(plot_resp)]-FLNKTIM,yLims,'LineWidth',1,'Color','k')
                 
                 % set text labels
                 if i~=ident_len||ii~=1
                     set(gca,'XLabel',[],'YLabel',[],'XTick',[],'YTick',[])
                 else
-                    set(gca,'XTick',[flnkTm numel(plot_resp)-flnkTm])
+                    set(gca,'XTick',[FLNKTIM numel(plot_resp)-FLNKTIM])
                     if iii==1
                         xlabel('ms')
-                        uicontrol('Style','text','String',[patient '_chan' sprintf('%03d',pl)],...
+                        uicontrol('Style','text','String',[PATIENT '_chan' sprintf('%03d',pl)],...
                             'Units','normalized','Position',[0 0 .08 .02]);
                     end
                 end
@@ -147,7 +229,7 @@ for pl = 1:length(ppNameList)
                 eeglab
                 figure;
                 [ersp,itc,powbase,times,freqs]=...
-                    newtimef(plot_resp,length(plot_resp),[-flnkTm numel(plot_resp)-flnkTm],dat.fs,...
+                    newtimef(plot_resp,length(plot_resp),[-FLNKTIM numel(plot_resp)-FLNKTIM],dat.fs,...
                     0,'plotitc','off');
                 
                 EEG = pop_importdata( 'dataformat', 'array', 'data', 'data', 'setname', 'Level', 'srate',srate, 'pnts',0, 'xmin',0, 'nbchan',0);
@@ -163,16 +245,16 @@ for pl = 1:length(ppNameList)
                 whitebg(2,'k')
                 
                 % plot stim time
-                line([flnkTm numel(plot_resp)-flnkTm],[200 200]+6,'LineWidth',2.5,...
+                line([FLNKTIM numel(plot_resp)-FLNKTIM],[200 200]+6,'LineWidth',2.5,...
                     'Color','k','clipping','off');
                 
                 % set text labels
                 if i~=ident_len||ii~=1
                     set(gca,'XLabel',[],'YLabel',[],'XTick',[],'YTick',[])
                 else
-                    set(gca,'XTick',[flnkTm numel(plot_resp)-flnkTm])
+                    set(gca,'XTick',[FLNKTIM numel(plot_resp)-FLNKTIM])
                     xlabel('ms')
-                    uicontrol('Style','text','String',[patient '_chan' sprintf('%03d',pl)],...
+                    uicontrol('Style','text','String',[PATIENT '_chan' sprintf('%03d',pl)],...
                         'Units','normalized','Position',[0 0 .08 .02]);
                 end
                 if i==1&&iii==1
@@ -193,13 +275,13 @@ for pl = 1:length(ppNameList)
         end
     end
     
-    save_name = [pp.erp 'erp_' patient '_chan' sprintf('%03d',pl) '.png'];
+    save_name = [RESULTSDIR 'erp/erp_' PATIENT '_chan' sprintf('%03d',pl) '.png'];
     export_fig(fHan_erp,save_name,'-nocrop')
     fprintf('\nsaved: %s',save_name);
     close(fHan_erp)
     
-    save_name = [pp.spect 'spect_' patient '_chan' sprintf('%03d',pl) '.png'];
-    export_fig(fHan_spect,save_name,'-nocrop',['-r' num2str(prs)])
+    save_name = [RESULTSDIR 'spect/spect_' PATIENT '_chan' sprintf('%03d',pl) '.png'];
+    export_fig(fHan_spect,save_name,'-nocrop',['-r' num2str(PRS)])
     fprintf('\nsaved: %s',save_name);
     close(fHan_spect)
     
