@@ -6,14 +6,20 @@
 % last modified
 % 12/13/16
 %%%%%%%%%%%%%%%%
-tic
-
 
 %% set constants
+% patient info
 PATIENT = '352L';
 BLOCK = '007';
 
+% header file from ptb
 HEADERFILE = 'header_082416_1607.csv';
+
+% figure print resolution
+PRS = 150;
+
+% length of time before/after stimulus event to retrieve
+FLNKTIME = 500;
 
 %% set directories
 PROJDIR = '/home/lab/Cloud2/movies/human/LazerMorph/';
@@ -32,10 +38,10 @@ end
 connectSumm = [connectSumm table(Channel)];  % concatenate variables
 
 % session loop
-for s = 1:length(HEADERFILE(:,1))
+for session = 1:length(HEADERFILE(:,1))
     
     %% read header file produced by psychtoolbox
-    ptb_data = readtable(fullfile(DATADIR, PATIENT, 'SPECIAL_mat', HEADERFILE(s,:)));
+    ptb_data = readtable(fullfile(DATADIR, PATIENT, 'SPECIAL_mat', HEADERFILE(session,:)));
     
     % split into header vars
     headNms = ptb_data.Properties.VariableNames;
@@ -57,12 +63,11 @@ for s = 1:length(HEADERFILE(:,1))
     %% read photodiode analog signal, extract timing of onset/offset
     % foo = load(data_fname, 'Inpt_RZ2_chn002');
     photodiode = tdt_data.Inpt_RZ2_chn002.dat;
-    flnkTm = 250;
-    minCross = find(photodiode > -0.06); % minimum
-    IsoCross = find(diff(minCross)> flnkTm); % timing of events
+    minCross = find(photodiode > -0.06); % minimum threshold
+    IsoCross = find(diff(minCross)> 250); % timing of events
     StimStarts = minCross(IsoCross(3:end));
     StimStops = minCross(IsoCross(3:end)+1);
-    maxTimeLen = max(StimStops-StimStarts)+2*flnkTm;
+    maxTimeLen = max(StimStops-StimStarts)+2*FLNKTIME;
     % figure; hist(StimStops-StimStarts)
     
     % create fieldname list
@@ -82,7 +87,7 @@ for s = 1:length(HEADERFILE(:,1))
         dat.resps = nan(length(StimStarts),maxTimeLen+1); % preallocate space
         data = tdt_data.(chan_str).('dat');
         for i = 1:length(StimStarts) % trial loop
-            trialSnip = data(StimStarts(i)-flnkTm:StimStops(i)+flnkTm);
+            trialSnip = data(StimStarts(i)-FLNKTIME:StimStops(i)+FLNKTIME);
             dat.resps(i,1:length(trialSnip)) = trialSnip;
         end
         
@@ -150,9 +155,8 @@ for s = 1:length(HEADERFILE(:,1))
     % dimensions: channels X timepoints X epochs
     
     % set filename
-    savename = [strjoin(regexp(PATIENT,['\d'],'match'),'') '-' BLOCK '_eeglabArray.mat'];
+    savename = [strjoin(regexp(PATIENT,['\d'],'match'),'') '-' BLOCK '_eeglab.mat'];
     
-    tic
     eeglab_mat = [];
     
     % set up eeglab 3D array - channels, timepoints, epochs
@@ -162,7 +166,7 @@ for s = 1:length(HEADERFILE(:,1))
         
         % create array for epoch N - rows are channels and columns are data points
         for c = 1:length(channels) % channel loop
-            volt_data = tdt_data.(channels{c}).dat(StimStarts(s)-flnkTm:StimStops(s)+flnkTm);
+            volt_data = tdt_data.(channels{c}).dat(StimStarts(s)-FLNKTIME:StimStops(s)+FLNKTIME);
             epoch_mat(c,1:length(volt_data)) = volt_data';
         end
         
@@ -170,21 +174,29 @@ for s = 1:length(HEADERFILE(:,1))
         eeglab_mat = cat(3,eeglab_mat,epoch_mat);
         
     end
-    toc
     
     % import data into EEGlab-formatted array
-    eeglab_array = pop_importdata('dataformat','array','data','eeglab_mat','setname','LazerMorph',...
-        'srate',fs,'pnts',length(eeglab_mat),'nbchan',length(channels),'xmin',0,'subject',PATIENT,'session',s);
+    EEG = pop_importdata('dataformat','array','data','eeglab_mat',...
+        'setname','LazerMorph','srate',fs,'pnts',length(eeglab_mat),'nbchan',...
+        length(channels),'xmin',0,'subject',PATIENT,'session',session);
     
-    eeglab_array.filepath = [DATADIR PATIENT '/procData/'];
-    eeglab_array.filename = savename;
+    % add header info
+    EEG.filepath = [DATADIR PATIENT '/procData/'];
+    EEG.filename = savename;
+    EEG.chaninfo.chansummary = connectSumm;
     
     % import epochs into EEGlab array
-    eeglab_array = pop_importepoch(eeglab_array, dat.header, dat.headNms);
+    EEG = pop_importepoch(EEG, dat.header, dat.headNms);
     
-    % save processed data as .mat file
-    save([eeglab_array.filepath eeglab_array.filename],'-struct','eeglab_array')
+    % remove baseline means from array
+    EEG = pop_rmbase( EEG, [0 FLNKTIME]);
     
+    % check the consistency of the fields of EEG dataset
+    EEG = eeg_checkset(EEG);
+
+    % save processed data as EEGlab-formatted file
+    EEG = pop_saveset(EEG, 'filename', EEG.filename, 'filepath', EEG.filepath); 
+
     toc
     
 end % end session loop
