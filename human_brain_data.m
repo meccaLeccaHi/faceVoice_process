@@ -33,11 +33,12 @@ EEG = pop_loadset([PREPROCDIR eeg_fname.name]);
 
 
 % alpha_val = 0.05; %compute two-tailed bootstrap s, ignificance prob. level.
-% freq_range = [3 100];%[1.2 100]
-% maxfreq = max(freq_range);
-% 
-% padratio = 2;     
-% 
+freq_range = [3 100];%[1.2 100]
+maxfreq = max(freq_range);
+
+padratio = 2;     
+alpha_val = 0.05; % sig. level for two-tailed bootstrap
+
 % elec = 1;
 % 
 % %The figure only shows 500ms
@@ -52,7 +53,7 @@ EEG = pop_loadset([PREPROCDIR eeg_fname.name]);
 % %             'erspmax', maxersp, 'plotersp','on', 'plotitc',itcplot,'baseline',[basemin basemax],'marktimes',plot_marktimes);       
 % 
 % % [ersp,itc,powbase,times,freqs,erspboot,itcboot] = ...
-% %     newtimef(EEG.data, EEG.pnts, [EEG.xmin EEG.xmax], EEG.srate,0);
+% %     newtimef(EEG.data(1,:), EEG.pnts, [EEG.xmin EEG.xmax], EEG.srate,0);
 % 
 % 
 % plot_resp = nanmean(EEG.data,3);
@@ -81,28 +82,28 @@ for pl = 1:length(ppNameList)
     EEGchan = pop_select(EEG,'channel',pl);
     yLimsChan = 1.1.*[min(min(EEGchan.data)) max(max(EEGchan.data))];
     
-    % load preProc file
-    dat = load([PREPROCDIR ppNameList{pl}]);
-
-    % grab header info
-    ind.voice = cell2mat(dat.header(:,ismember(dat.headNms,'VOICE')));
-    ind.face = cell2mat(dat.header(:,ismember(dat.headNms,'FACE')));
-    ind.noise = cell2mat(dat.header(:,ismember(dat.headNms,'NOISE')));
-    ind = structfun(@logical,ind, 'UniformOutput', false); 
-    ind = structfun(@transpose,ind, 'UniformOutput', false);
-
-
-    hd.levels = cell2mat(dat.header(:,ismember(dat.headNms,'LEVEL')));
-    hd.idents = cell2mat(dat.header(:,ismember(dat.headNms,'IDENTITY')));
-    hd.traj = cell2mat(dat.header(:,ismember(dat.headNms,'TRAJ')));
-
-    % grab responses
-    subdat.voOnly = dat.resps(ind.voice&~ind.face&~ind.noise,:);
-    subdat.faOnly = dat.resps(ind.face&~ind.voice&~ind.noise,:);
-    subdat.voFa = dat.resps(ind.face&~ind.voice&~ind.noise,:);
-%     subdat.voNoise = dat.resps(ind.voice&ind.noise,:);
-%     subdat.faNoise = dat.resps(ind.face&ind.noise,:);
-%     subdat.voFaNoise = dat.resps(ind.face&ind.voice&ind.noise,:);
+%     % load preProc file
+%     dat = load([PREPROCDIR ppNameList{pl}]);
+% 
+%     % grab header info
+%     ind.voice = cell2mat(dat.header(:,ismember(dat.headNms,'VOICE')));
+%     ind.face = cell2mat(dat.header(:,ismember(dat.headNms,'FACE')));
+%     ind.noise = cell2mat(dat.header(:,ismember(dat.headNms,'NOISE')));
+%     ind = structfun(@logical,ind, 'UniformOutput', false); 
+%     ind = structfun(@transpose,ind, 'UniformOutput', false);
+% 
+% 
+%     hd.levels = cell2mat(dat.header(:,ismember(dat.headNms,'LEVEL')));
+%     hd.idents = cell2mat(dat.header(:,ismember(dat.headNms,'IDENTITY')));
+%     hd.traj = cell2mat(dat.header(:,ismember(dat.headNms,'TRAJ')));
+% 
+%     % grab responses
+%     subdat.voOnly = dat.resps(ind.voice&~ind.face&~ind.noise,:);
+%     subdat.faOnly = dat.resps(ind.face&~ind.voice&~ind.noise,:);
+%     subdat.voFa = dat.resps(ind.face&~ind.voice&~ind.noise,:);
+% %     subdat.voNoise = dat.resps(ind.voice&ind.noise,:);
+% %     subdat.faNoise = dat.resps(ind.face&ind.noise,:);
+% %     subdat.voFaNoise = dat.resps(ind.face&ind.voice&ind.noise,:);
 
 
     %% build header
@@ -120,9 +121,9 @@ for pl = 1:length(ppNameList)
     EEGchan.noise = pop_select(EEG,'channel',pl,'trial',find(hd.noise));
 
     %% plot mean erp responses for each modality
-        meanResp_audOnly = nanmean(subdat.voOnly);
-        meanResp_visOnly = nanmean(subdat.faOnly);
-        meanResp_audVis = nanmean(subdat.voFa);
+%         meanResp_audOnly = nanmean(subdat.voOnly);
+%         meanResp_visOnly = nanmean(subdat.faOnly);
+%         meanResp_audVis = nanmean(subdat.voFa);
 
     meanResp.face = nanmean(EEGchan.face.data,3);
     meanResp.voice = nanmean(EEGchan.voice.data,3);
@@ -206,9 +207,9 @@ for pl = 1:length(ppNameList)
             % convert structure to cell array
             resps = struct2cell(EEGstim);
             
-                resp{1} = dat.resps(ind.voice&~ind.face&~ind.noise&loop_inds,:);
-                resp{2} = dat.resps(~ind.voice&ind.face&~ind.noise&loop_inds,:);
-                resp{3} = dat.resps(ind.voice&ind.face&~ind.noise&loop_inds,:);
+%                 resp{1} = dat.resps(ind.voice&~ind.face&~ind.noise&loop_inds,:);
+%                 resp{2} = dat.resps(~ind.voice&ind.face&~ind.noise&loop_inds,:);
+%                 resp{3} = dat.resps(ind.voice&ind.face&~ind.noise&loop_inds,:);
             
             for iii = 1:length(ttlArray)
                 
@@ -245,7 +246,7 @@ for pl = 1:length(ppNameList)
                 end
                 if i==1&&ii==1
                     % plot second title
-                    text(2300,max(ylim)*2,ttlArray{iii},'FontSize',14','FontWeight','Bold', ...
+                    text(2300,2,ttlArray{iii},'FontSize',14,'FontWeight','Bold', ...
                         'HorizontalAlignment','Center');
                 end
                 
@@ -256,29 +257,31 @@ for pl = 1:length(ppNameList)
                 
                 keyboard
                 
+                %%%%%%%%%%%%%%%%%% LEFT OFF HERE
+                 %%%% REMEMBER TO REMOVE NANS BEFORE RUNNING NEWTIMEF
                 
-                
-                eeglab
-                figure;
-                [ersp,itc,powbase,times,freqs]=...
-                    newtimef(plot_resp,length(plot_resp),[-FLNKTIM numel(plot_resp)-FLNKTIM],dat.fs,...
-                    0,'plotitc','off');
-                
-                EEG = pop_importdata( 'dataformat', 'array', 'data', 'data', 'setname', 'Level', 'srate',srate, 'pnts',0, 'xmin',0, 'nbchan',0);
+                 [ersp,itc,powbase,times,freqs] = ...
+                     newtimef(plot_resp(isfinite(plot_resp)),sum(isfinite(plot_resp)),...
+                     [1 numel(plot_resp)-FLNKTIM],EEG.srate,0,'plotitc','off', ...
+                     'maxfreq',maxfreq,'freqs',freq_range,'padratio', padratio, ...
+                     'plotphase', 'off',  'alpha', alpha_val);
 
-
+                 
+                 %%%% maybe start plotting the output of newtimef() below
+                 %%%% to eliminate extraneuous labels...
         
-                segmentLength = round(numel(plot_resp)/4.5);
-                [y,f,t,p] = spectrogram(plot_resp,round(segmentLength/5), ...
-                    round(80/100*segmentLength/5),[],dat.fs,'yaxis','MinThreshold',-20);
-                surf(t*1000,f,10*log10(abs(p)),'EdgeColor','none');
-                axis xy; axis tight; colormap(jet); view(0,90); 
-                ylim([0 200]) 
-                whitebg(2,'k')
+%                 segmentLength = round(numel(plot_resp)/4.5);
+%                 [y,f,t,p] = spectrogram(plot_resp,round(segmentLength/5), ...
+%                     round(80/100*segmentLength/5),[],dat.fs,'yaxis','MinThreshold',-20);
+%                 surf(t*1000,f,10*log10(abs(p)),'EdgeColor','none');
+%                 axis xy; axis tight; colormap(jet); view(0,90); 
+%                 ylim([0 200]) 
+%                 whitebg(2,'k')
                 
-                % plot stim time
-                line([FLNKTIM numel(plot_resp)-FLNKTIM],[200 200]+6,'LineWidth',2.5,...
-                    'Color','k','clipping','off');
+%% FIX>?
+%                 % plot stim time
+%                 line([FLNKTIM numel(plot_resp)-FLNKTIM],[max(ylim) max(ylim)]+6,'LineWidth',2.5,...
+%                     'Color','k','clipping','off');
                 
                 % set text labels
                 if i~=ident_len||ii~=1
