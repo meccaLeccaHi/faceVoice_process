@@ -30,80 +30,35 @@ RESULTSDIR = [DATADIR PATIENT '/results/'];
 eeg_fname = dir([PREPROCDIR '*eeglab.set']);
 EEG = pop_loadset([PREPROCDIR eeg_fname.name]);
 
-keyboard
+chan_num = length(plot_resp(:,1));
 
 freq_range = [3 100];%[1.2 100]
 maxfreq = max(freq_range);
-
 padratio = 2;     
 alpha_val = 0.05; % prob. level for two-tailed bootstrap
-
 % elec = 1;
-% 
-% %The figure only shows 500ms
 % basemin = -500; %duration prior to sound onset (ms): needs to follow the matrix size (basemin = epochmin)
 % basemax = 0;
-% 
-% 
-% 
-% %  [ersp,itc,powbase,times,freqs,erspboot,itcboot,alltfX] = pop_newtimef(EEG, ...
-% %             1, elec, [EEG.xmin EEG.xmax]*EEG.srate,[3 0.5], 'maxfreq',maxfreq, 'freqs',freq_range,'padratio', padratio, ...
-% %             'plotphase', 'off', 'timesout', outtimes, 'alpha', alpha_val, 'naccu', 300, 'baseboot',1,'rmerp','off', ...
-% %             'erspmax', maxersp, 'plotersp','on', 'plotitc',itcplot,'baseline',[basemin basemax],'marktimes',plot_marktimes);       
-% 
-% % [ersp,itc,powbase,times,freqs,erspboot,itcboot] = ...
-% %     newtimef(EEG.data(1,:), EEG.pnts, [EEG.xmin EEG.xmax], EEG.srate,0);
-% 
-% 
-% plot_resp = nanmean(EEG.data,3);
-% 
-% figure
-% plot(plot_resp)
-% 
-% % eeglab
-% 
-% figure;
-% [ersp,itc,powbase,times,freqs] = ...
-%     newtimef(plot_resp,length(plot_resp),[-FLNKTIM numel(plot_resp)-FLNKTIM], ...
-%     EEG.srate,0,'plotitc','off');
-                
-                
-                
 
-preProcList = dir([PREPROCDIR PATIENT(1:3) '*chan*.mat']); % get list of pre-processed files
-ppNameList = sort_nat({preProcList.name}'); % sort according to channel number
+% average responses on each channels
+plot_resp = nanmean(EEG.data,3)';
 
-for pl = 1:length(ppNameList)
+% plot mean resp on all channels
+figure
+plot(plot_resp)
+title(['all ' num2str(chan_num) ' channels'])
+
+% save figure
+save_name = [RESULTSDIR 'erp/aveResp_' PATIENT '_allChan.png'];
+save_plot(save_name)
+
+for pl = 1:chan_num
     
 %     tic
 
-    % define limits for y-axis based on current channel
+    % define limits for y-axis based on limits of the current channel
     EEGchan = pop_select(EEG,'channel',pl);
     yLimsChan = 1.1.*[min(min(EEGchan.data)) max(max(EEGchan.data))];
-    
-%     % load preProc file
-%     dat = load([PREPROCDIR ppNameList{pl}]);
-% 
-%     % grab header info
-%     ind.voice = cell2mat(dat.header(:,ismember(dat.headNms,'VOICE')));
-%     ind.face = cell2mat(dat.header(:,ismember(dat.headNms,'FACE')));
-%     ind.noise = cell2mat(dat.header(:,ismember(dat.headNms,'NOISE')));
-%     ind = structfun(@logical,ind, 'UniformOutput', false); 
-%     ind = structfun(@transpose,ind, 'UniformOutput', false);
-% 
-% 
-%     hd.levels = cell2mat(dat.header(:,ismember(dat.headNms,'LEVEL')));
-%     hd.idents = cell2mat(dat.header(:,ismember(dat.headNms,'IDENTITY')));
-%     hd.traj = cell2mat(dat.header(:,ismember(dat.headNms,'TRAJ')));
-% 
-%     % grab responses
-%     subdat.voOnly = dat.resps(ind.voice&~ind.face&~ind.noise,:);
-%     subdat.faOnly = dat.resps(ind.face&~ind.voice&~ind.noise,:);
-%     subdat.voFa = dat.resps(ind.face&~ind.voice&~ind.noise,:);
-% %     subdat.voNoise = dat.resps(ind.voice&ind.noise,:);
-% %     subdat.faNoise = dat.resps(ind.face&ind.noise,:);
-% %     subdat.voFaNoise = dat.resps(ind.face&ind.voice&ind.noise,:);
-
 
     %% build header
     hd.voice = cell2mat({EEG.epoch.VOICE});
@@ -120,16 +75,14 @@ for pl = 1:length(ppNameList)
     EEGchan.noise = pop_select(EEG,'channel',pl,'trial',find(hd.noise));
 
     %% plot mean erp responses for each modality
-%         meanResp_audOnly = nanmean(subdat.voOnly);
-%         meanResp_visOnly = nanmean(subdat.faOnly);
-%         meanResp_audVis = nanmean(subdat.voFa);
-
     meanResp.face = nanmean(EEGchan.face.data,3);
     meanResp.voice = nanmean(EEGchan.voice.data,3);
     meanResp.both = nanmean(EEGchan.both.data,3);
     
     % remove singletons
     meanResp = structfun(@squeeze,meanResp, 'UniformOutput', false);
+    
+    keyboard
     
 %     plotArray = {meanResp_audOnly; meanResp_visOnly; meanResp_audVis};
 %     plotArray = {meanResp_face; meanResp_voice; meanResp_both};
@@ -157,9 +110,7 @@ for pl = 1:length(ppNameList)
         'Units','normalized','Position',[0 0 .175 .03]); 
     
     save_name = [RESULTSDIR 'erp/aveMod_' PATIENT '_chan' sprintf('%03d',pl) '.png'];
-%     export_fig(save_name)
-%     fprintf('\nsaved: %s',save_name);
-    close(gcf)
+%     save_plot(save_name)
     
     
     %% plot time-frequency plots
@@ -310,14 +261,10 @@ for pl = 1:length(ppNameList)
     end
     
     save_name = [RESULTSDIR 'erp/erp_' PATIENT '_chan' sprintf('%03d',pl) '.png'];
-    export_fig(fHan_erp,save_name,'-nocrop')
-    fprintf('\nsaved: %s',save_name);
-    close(fHan_erp)
+    save_plot(save_name, fHan_erp)
     
     save_name = [RESULTSDIR 'spect/spect_' PATIENT '_chan' sprintf('%03d',pl) '.png'];
-    export_fig(fHan_spect,save_name,'-nocrop',['-r' num2str(PRS)])
-    fprintf('\nsaved: %s',save_name);
-    close(fHan_spect)
+    save_plot(save_name, fHan_erp, PRS)
     
 %     toc
 end
