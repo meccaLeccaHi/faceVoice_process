@@ -30,8 +30,6 @@ RESULTSDIR = [DATADIR PATIENT '/results/'];
 eeg_fname = dir([PREPROCDIR '*eeglab.set']);
 EEG = pop_loadset([PREPROCDIR eeg_fname.name]);
 
-chan_num = length(plot_resp(:,1));
-
 freq_range = [3 100];%[1.2 100]
 maxfreq = max(freq_range);
 padratio = 2;     
@@ -44,15 +42,15 @@ alpha_val = 0.05; % prob. level for two-tailed bootstrap
 plot_resp = nanmean(EEG.data,3)';
 
 % plot mean resp on all channels
-figure
+figure('Color','w'); % ,'Visible','off'
 plot(plot_resp)
-title(['all ' num2str(chan_num) ' channels'])
+title(['all ' num2str(EEG.nbchan) ' channels'])
 
 % save figure
 save_name = [RESULTSDIR 'erp/aveResp_' PATIENT '_allChan.png'];
 save_plot(save_name)
 
-for pl = 1:chan_num
+for pl = 1:EEG.nbchan
     
 %     tic
 
@@ -61,39 +59,29 @@ for pl = 1:chan_num
     yLimsChan = 1.1.*[min(min(EEGchan.data)) max(max(EEGchan.data))];
 
     %% build header
-    hd.voice = cell2mat({EEG.epoch.VOICE});
-    hd.face = cell2mat({EEG.epoch.FACE});
-    hd.noise = cell2mat({EEG.epoch.NOISE});
-    hd.levels = cell2mat({EEG.epoch.LEVEL});
-    hd.idents = cell2mat({EEG.epoch.IDENTITY});
-    hd.traj = cell2mat({EEG.epoch.TRAJ});
+    fieldsToCut = fieldnames(EEG.epoch);
+    fieldsToCut(8:13) = [];
+    hd = rmfield(EEG.epoch,fieldsToCut);
     
     %% subset data
-    EEGchan.face = pop_select(EEG,'channel',pl,'trial',find(hd.face));
-    EEGchan.voice = pop_select(EEG,'channel',pl,'trial',find(hd.voice));
-    EEGchan.both = pop_select(EEG,'channel',pl,'trial',find(hd.face&hd.voice));
-    EEGchan.noise = pop_select(EEG,'channel',pl,'trial',find(hd.noise));
+    EEGgroup.face = pop_select(EEG,'channel',pl,'trial',find([hd.FACE]));
+    EEGgroup.voice = pop_select(EEG,'channel',pl,'trial',find([hd.VOICE]));
+    EEGgroup.both = pop_select(EEG,'channel',pl,'trial',find([hd.FACE]&[hd.VOICE]));
+    EEGgroup.noise = pop_select(EEG,'channel',pl,'trial',find([hd.NOISE]));
 
+    % average the 'data' sub-field in above structure
+    meanResp = structfun(@(x)nanmean(x.data,3),EEGgroup,'UniformOutput',false);
+    
     %% plot mean erp responses for each modality
-    meanResp.face = nanmean(EEGchan.face.data,3);
-    meanResp.voice = nanmean(EEGchan.voice.data,3);
-    meanResp.both = nanmean(EEGchan.both.data,3);
-    
-    % remove singletons
-    meanResp = structfun(@squeeze,meanResp, 'UniformOutput', false);
-    
-    keyboard
-    
-%     plotArray = {meanResp_audOnly; meanResp_visOnly; meanResp_audVis};
-%     plotArray = {meanResp_face; meanResp_voice; meanResp_both};
-
     plotArray = cell2mat(struct2cell(meanResp));
     ttlArray = fieldnames(meanResp);
 
+    keyboard % resume here 1/5/17
+    
     yLims = 1.1.*[min(min(plotArray)) max(max(plotArray))];
 
     figure('Color','w'); % ,'Visible','off'
-    for i = 1:3
+    for i = 1:length(plotArray(:,1))
         subplot(3,1,i)
         plot(plotArray(i,:))
         xlim([0 length(plotArray(i,:))])
@@ -111,7 +99,6 @@ for pl = 1:chan_num
     
     save_name = [RESULTSDIR 'erp/aveMod_' PATIENT '_chan' sprintf('%03d',pl) '.png'];
 %     save_plot(save_name)
-    
     
     %% plot time-frequency plots
  
