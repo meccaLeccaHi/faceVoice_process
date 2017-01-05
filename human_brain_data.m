@@ -4,7 +4,7 @@
 %
 % apj
 % last modified
-% 12/13/16
+% 1/5/17
 %%%%%%%%%%%%%%%%
 
 %% set constants
@@ -30,14 +30,13 @@ RESULTSDIR = [DATADIR PATIENT '/results/'];
 eeg_fname = dir([PREPROCDIR '*eeglab.set']);
 EEG = pop_loadset([PREPROCDIR eeg_fname.name]);
 
+keyboard
 
-
-% alpha_val = 0.05; %compute two-tailed bootstrap s, ignificance prob. level.
 freq_range = [3 100];%[1.2 100]
 maxfreq = max(freq_range);
 
 padratio = 2;     
-alpha_val = 0.05; % sig. level for two-tailed bootstrap
+alpha_val = 0.05; % prob. level for two-tailed bootstrap
 
 % elec = 1;
 % 
