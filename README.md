@@ -1,5 +1,5 @@
 # faceVoice_process
-## EcoG analysis pipeline
+#### Matlab scripts for analysis of human intra-cranial recordings
 These scripts includes elements of EEGlab (https://sccn.ucsd.edu/eeglab/).
 
 ### human_brain_preproc.m
